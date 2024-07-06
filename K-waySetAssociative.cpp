@@ -3,83 +3,153 @@ using namespace std;
 
 class Cache {
 private:
-    int k; // associativity
-    int v; // number of sets
-    vector<vector<int>> cache;
+    int k; // no of lines in set
+    int n; 
+    int blockSize; 
+    vector<vector<int>> cache; 
+    vector<list<int>> lru_tracker; 
+    int hits; 
+    int misses; 
+    const int cacheAccessTime = 10; 
+    const int mainMemoryAccessTime = 1000; 
 
 public:
-    Cache(int k, int v)   {
-        this->k=k;
-        this->v=v;
-        cache.resize(v, vector<int>(k, -1)); // Initialize cache with -1 (empty)
+    Cache(int cacheSize, int blockSize, int k) {
+        this->k = k;
+        this->blockSize = blockSize;
+        this->n = cacheSize / (k * blockSize); 
+        cache.resize(n, vector<int>(k * blockSize, -1)); 
+        lru_tracker.resize(n);
+        hits = 0;
+        misses = 0;
     }
 
-    int getSet(int j) {
-        return j % v;
+    int getSet(int value) {
+        return value % n;
     }
 
-    bool isCacheHit(int address) {
-        int set = getSet(address);
-        for (int i = 0; i < k; ++i) {
-            if (cache[set][i] == address) {
+    bool isCacheHit(int value) {
+        int set = getSet(value);
+        for (int i = 0; i < k * blockSize; ++i) {
+            if (cache[set][i] == value) {
                 return true;
             }
         }
         return false;
     }
 
-    void accessMemory(int address) {
-        int set = getSet(address);
-        if (!isCacheHit(address)) {
-            // Cache miss, find an empty slot or replace
+    void PutData(int value) {
+        int set = getSet(value);
+        if (!isCacheHit(value)) {
+            // insert in empty slot
+            misses++;
             bool placed = false;
-            for (int i = 0; i < k; ++i) {
+            for (int i = 0; i < k * blockSize; ++i) {
                 if (cache[set][i] == -1) {
-                    cache[set][i] = address;
+                    cache[set][i] = value;
+                    lru_tracker[set].push_back(value);
                     placed = true;
                     break;
                 }
             }
             if (!placed) {
-                // All slots are full, replace the first one (better replacement policy can be implemented)
-                cache[set][0] = address;
+               // slots full, replace lru
+                int lru_value = lru_tracker[set].front();
+                lru_tracker[set].pop_front();
+                for (int i = 0; i < k * blockSize; ++i) {
+                    if (cache[set][i] == lru_value) {
+                        cache[set][i] = value;
+                        lru_tracker[set].push_back(value);
+                        break;
+                    }
+                }
             }
-            cout << "Cache miss for address " << address << endl;
-        } else {
-            cout << "Cache hit for address " << address << endl;
+            cout << "\nCache miss for value " << value  << endl;
+            cout<<"\nretrievin data from main memory\n";
+        } 
+        else 
+        {
+            // Cache hit, replace lru
+            hits++;
+            lru_tracker[set].remove(value);
+            lru_tracker[set].push_back(value);
+            cout << "\nCache hit for value " << value << endl;
         }
+        printStats();
     }
+
+    int GetData(int value) {
+        int set = getSet(value);
+        for (int i = 0; i < k * blockSize; ++i) {
+            if (cache[set][i] == value) {
+                //change lru
+                hits++;
+                lru_tracker[set].remove(value);
+                lru_tracker[set].push_back(value);
+                cout << "\nCache hit for value " << value << " (Cache Access Time: " << cacheAccessTime << " ns)" << endl;
+                return cache[set][i];
+            }
+        }
+        
+        // cout << "Cache miss for value " << value << " (Main Memory Access Time: " << mainMemoryAccessTime << " ns)" << endl;
+        PutData( value);
+        
+        return value;
+    }
+
 
     void printCache() {
         cout << "Cache contents:" << endl;
-        for (int i = 0; i < v; ++i) {
+        for (int i = 0; i < n; ++i) {
             cout << "Set " << i << ": ";
-            for (int j = 0; j < k; ++j) {
+            for (int j = 0; j < k * blockSize; ++j) {
                 if (cache[i][j] == -1) {
                     cout << "- ";
                 } else {
                     cout << cache[i][j] << " ";
                 }
             }
-            cout << endl;
+            cout<<endl;
         }
+        cout<<"----------------------------------------------------------"<<endl;
+    }
+
+    void printStats() {
+        cout<<"----------------------------------------------------------"<<endl;
+        cout << "Cache Hits: " << hits << endl;
+        cout << "Cache Misses: " << misses << endl;
+        int totalAccesses = hits + misses;
+        double hitRate = static_cast<double>(hits) / totalAccesses;
+        double missRate = static_cast<double>(misses) / totalAccesses;
+        double amat = (hitRate * cacheAccessTime) + (missRate * mainMemoryAccessTime);
+        cout << "Average Memory Access Time (AMAT): " << amat << " ns" << endl;
     }
 };
 
 int main() {
-    int k = 2; // 2-way set associative
-    int v = 4; // 4 sets
+    int cacheSize = 16; 
+    int blockSize = 2; 
+    int k = 2; 
 
-    Cache cache(k, v);
+    Cache cache(cacheSize, blockSize, k);
 
-    vector<int> memoryReferences = {4, 5, 9, 7};
-
-    for (int address : memoryReferences) {
-        cout << "Accessing memory address: " << address << endl;
-        cache.accessMemory(address);
+    vector<int> values = {4, 5, 9, 7};
+    
+    int key = 5;
+    int result = cache.GetData(key);
+    cout << "\nData found for value " << key << ": " << result << endl;
+    for (int value : values) {
+        cout << "\nAccessing value: " << value << endl;
+        cache.PutData(value);
         cache.printCache();
         cout << endl;
     }
+
+     key = 5;
+     result = cache.GetData(key);
+    cout << "\nData found for value " << key << ": " << result << endl;
+
+    cache.printStats();
 
     return 0;
 }
