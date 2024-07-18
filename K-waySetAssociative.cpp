@@ -12,6 +12,7 @@ private:
     int misses; 
     const int cacheAccessTime = 10; 
     const int mainMemoryAccessTime = 1000; 
+    unordered_map<int, int>frame;
 
 public:
     Cache(int cacheSize, int blockSize, int k) {
@@ -23,7 +24,19 @@ public:
         hits = 0;
         misses = 0;
     }
-
+    
+    void genframe(int value)
+    {
+        frame[value]=rand() ;
+    }
+    void set_zero(int valueToFind) {
+        for (auto it = frame.begin(); it != frame.end(); ++it) {
+        if (it->second == valueToFind) {
+            it->second = 0;
+            break; // Assuming you only want to update the first occurrence
+        }
+    }
+    }
     int getSet(int value) {
         return value % n;
     }
@@ -39,6 +52,9 @@ public:
     }
 
     void PutData(int value) {
+        if(frame[value]==0)
+            genframe(value);
+        value=frame[value];
         int set = getSet(value);
         if (!isCacheHit(value)) {
             // insert in empty slot
@@ -56,6 +72,7 @@ public:
                // slots full, replace lru
                 int lru_value = lru_tracker[set].front();
                 lru_tracker[set].pop_front();
+                set_zero(value);
                 for (int i = 0; i < k * blockSize; ++i) {
                     if (cache[set][i] == lru_value) {
                         cache[set][i] = value;
@@ -79,6 +96,9 @@ public:
     }
 
     int GetData(int value) {
+        if(frame[value]==0)
+            genframe(value);
+        value=frame[value];
         int set = getSet(value);
         for (int i = 0; i < k * blockSize; ++i) {
             if (cache[set][i] == value) {
