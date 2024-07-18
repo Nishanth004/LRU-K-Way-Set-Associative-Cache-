@@ -33,7 +33,7 @@ public:
         for (auto it = frame.begin(); it != frame.end(); ++it) {
         if (it->second == valueToFind) {
             it->second = 0;
-            break; // Assuming you only want to update the first occurrence
+            break; 
         }
     }
     }
